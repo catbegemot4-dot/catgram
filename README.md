@@ -8,7 +8,8 @@
 > Это неофициальный клиент. Он не связан с Telegram и работает через ваш личный аккаунт и ваши собственные ключи API.
 
 ## Что умеет
-<img width="1920" height="1036" alt="Снимок экрана от 2026-11-03 01-52-28" src="https://github.com/user-attachments/assets/944ce121-d271-4d06-81bb-b1bcfb064c71" />
+<img width="1920" height="1036" alt="Снимок экрана от 2026-11-03 01-52-28" src="https://github.com/user-attachments/assets/54d7d206-0afe-4b94-9d01-fdcb10e6eac1" />
+
 
 
 
