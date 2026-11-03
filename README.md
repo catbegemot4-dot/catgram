@@ -1,4 +1,5 @@
-<img width="1920" height="1036" alt="Снимок экрана от 2026-11-03 01-52-28" src="https://github.com/user-attachments/assets/54d7d206-0afe-4b94-9d01-fdcb10e6eac1" />
+<img width="1346" height="920" alt="Снимок экрана от 2026-11-03 15-28-00" src="https://github.com/user-attachments/assets/80135e2f-acff-4fd2-88e9-7a0540745289" />
+
 # 🐱 catgram
 
 Маленький клиент Telegram для Linux на **PyQt6 + Telethon**. Один файл, без лишнего:
