@@ -6,7 +6,10 @@ import json
 import os
 import random
 import re
+import shutil
+import subprocess
 import sys
+import tempfile
 import time
 import urllib.request
 from datetime import datetime
@@ -21,8 +24,8 @@ from PyQt6.QtGui import (
     QPolygonF, QShortcut, QTextCursor, QTextDocument,
 )
 from PyQt6.QtWidgets import (
-    QApplication, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFormLayout,
-    QInputDialog, QLabel, QLineEdit, QListWidget, QListWidgetItem, QMainWindow,
+    QApplication, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFileDialog, QFormLayout,
+    QHBoxLayout, QInputDialog, QLabel, QLineEdit, QListWidget, QListWidgetItem, QMainWindow,
     QMessageBox, QPushButton, QSpinBox, QSplitter, QStackedWidget, QTextBrowser,
     QVBoxLayout, QWidget,
 )
@@ -95,7 +98,7 @@ TEXT = {
         "info": "Chat info",
         "about": "Description",
         "username": "Username",
-        "phone": "Phone",
+        "phone_lbl": "Phone",
         "members": "Members",
         "set_upd_start": "Check for updates on start",
         "set_upd_url": "Updates URL (https)",
@@ -106,6 +109,11 @@ TEXT = {
         "res": "Search results",
         "nothing": "Nothing found",
         "online": "purring",
+        "attach_video": "Send a video",
+        "pick_video": "Choose a video",
+        "video_files": "Video",
+        "all_files": "All files",
+        "sending_video": "Sending video",
         "offline": "not purring",
         "hist_start": "· beginning of the conversation ·",
         "hist_loading": "Loading history…",
@@ -149,7 +157,7 @@ TEXT = {
         "info": "Информация о чате",
         "about": "Описание",
         "username": "Имя пользователя",
-        "phone": "Телефон",
+        "phone_lbl": "Телефон",
         "members": "Участников",
         "set_upd_start": "Проверять обновления при запуске",
         "set_upd_url": "Адрес обновлений (https)",
@@ -160,6 +168,11 @@ TEXT = {
         "res": "Результаты поиска",
         "nothing": "Ничего не накотено",
         "online": "котится",
+        "attach_video": "Отправить видео",
+        "pick_video": "Выберите видео",
+        "video_files": "Видео",
+        "all_files": "Все файлы",
+        "sending_video": "Отправляю видео",
         "offline": "не котится",
         "hist_start": "· начало переписки ·",
         "hist_loading": "Загружаю историю…",
@@ -203,7 +216,7 @@ TEXT = {
         "info": "Інформація про чат",
         "about": "Опис",
         "username": "Ім’я користувача",
-        "phone": "Телефон",
+        "phone_lbl": "Телефон",
         "members": "Учасників",
         "set_upd_start": "Перевіряти оновлення під час запуску",
         "set_upd_url": "Адреса оновлень (https)",
@@ -214,6 +227,11 @@ TEXT = {
         "res": "Результати пошуку",
         "nothing": "Нічого не знайдено",
         "online": "котиться",
+        "attach_video": "Надіслати відео",
+        "pick_video": "Виберіть відео",
+        "video_files": "Відео",
+        "all_files": "Усі файли",
+        "sending_video": "Надсилаю відео",
         "offline": "не котиться",
         "hist_start": "· початок листування ·",
         "hist_loading": "Завантажую історію…",
@@ -424,6 +442,54 @@ def webp_ok():
     if _WEBP is None:
         _WEBP = b"webp" in {bytes(f).lower() for f in QImageReader.supportedImageFormats()}
     return _WEBP
+
+
+def prepare_video(path):
+    """Через ffprobe/ffmpeg (если установлены) узнаёт размеры и длительность видео и снимает кадр-превью.
+
+    Возвращает (атрибуты для Telegram или None, путь к jpg-превью или None).
+    Без ffmpeg видео всё равно отправится, только Telegram покажет его без превью.
+    """
+    attrs, thumb = None, None
+    duration = 0
+    if shutil.which("ffprobe"):
+        try:
+            r = subprocess.run(
+                ["ffprobe", "-v", "error", "-select_streams", "v:0",
+                 "-show_streams", "-show_format", "-of", "json", path],
+                capture_output=True, timeout=20)
+            data = json.loads(r.stdout)
+            st = data["streams"][0]
+            w, h = int(st["width"]), int(st["height"])
+            rot = int(float(st.get("tags", {}).get("rotate", 0)))
+            for sd in st.get("side_data_list", []):
+                if "rotation" in sd:
+                    rot = int(float(sd["rotation"]))
+            if abs(rot) % 180 == 90:   # снято на телефон «лёжа» — размеры меняем местами
+                w, h = h, w
+            duration = float(data.get("format", {}).get("duration") or st.get("duration") or 0)
+            attrs = types.DocumentAttributeVideo(
+                duration=int(round(duration)), w=w, h=h, supports_streaming=True)
+        except Exception:
+            attrs = None
+    if shutil.which("ffmpeg"):
+        fd, out = tempfile.mkstemp(suffix=".jpg", prefix="catgram_")
+        os.close(fd)
+        try:
+            subprocess.run(
+                ["ffmpeg", "-y", "-v", "error", "-ss", "1" if duration > 2 else "0", "-i", path,
+                 "-frames:v", "1", "-vf", "scale=320:320:force_original_aspect_ratio=decrease", out],
+                capture_output=True, timeout=30)
+            if os.path.getsize(out) > 0:
+                thumb = out
+        except Exception:
+            pass
+        if thumb is None:
+            try:
+                os.remove(out)
+            except OSError:
+                pass
+    return attrs, thumb
 
 
 class ChatView(QTextBrowser):
@@ -674,6 +740,12 @@ class CatGram(QMainWindow):
 
         self.input = QLineEdit()
         self.input.returnPressed.connect(self.on_send)
+        self.attach = QPushButton("📎")
+        self.attach.clicked.connect(self.on_attach)
+        send_row = QHBoxLayout()
+        send_row.setSpacing(6)
+        send_row.addWidget(self.attach)
+        send_row.addWidget(self.input, 1)
 
         right = QWidget()
         rl = QVBoxLayout(right)
@@ -681,7 +753,7 @@ class CatGram(QMainWindow):
         rl.addWidget(self.header)
         rl.addWidget(self.msg_search)
         rl.addWidget(self.stack, 1)
-        rl.addWidget(self.input)
+        rl.addLayout(send_row)
 
         split = QSplitter()
         split.addWidget(left)
@@ -731,6 +803,7 @@ class CatGram(QMainWindow):
         self.chat_filter.setPlaceholderText(tr("find_chats"))
         self.msg_search.setPlaceholderText(tr("find_msgs"))
         self.input.setPlaceholderText(tr("write"))
+        self.attach.setToolTip(tr("attach_video"))
         self.empty_text.setText(tr("pick_chat"))
 
     def closeEvent(self, event):
@@ -1129,6 +1202,45 @@ class CatGram(QMainWindow):
         if did == self.current:
             await self.show_message(m)
 
+    def on_attach(self, *_):
+        if self.current is None:
+            return
+        flt = (f"{tr('video_files')} (*.mp4 *.mov *.mkv *.webm *.avi *.m4v *.3gp);;"
+               f"{tr('all_files')} (*)")
+        path, _flt = QFileDialog.getOpenFileName(self, tr("pick_video"), str(Path.home()), flt)
+        if not path:
+            return
+        caption = self.input.text().strip()   # что написано в поле — станет подписью к видео
+        self.input.clear()
+        self.spawn(self.send_video(self.current, path, caption))
+
+    async def send_video(self, did, path, caption):
+        name = os.path.basename(path)
+        thumb = None
+        self.attach.setEnabled(False)   # пока одно видео уходит, второе не запускаем
+        try:
+            self.statusBar().showMessage(f"{tr('sending_video')}: {name}…")
+            attrs, thumb = await asyncio.to_thread(prepare_video, path)
+
+            def progress(sent, total):
+                pct = int(sent * 100 / total) if total else 0
+                self.statusBar().showMessage(f"{tr('sending_video')}: {name} — {pct}%")
+
+            m = await self.client.send_file(
+                did, path, caption=caption or None, supports_streaming=True,
+                attributes=[attrs] if attrs else None, thumb=thumb,
+                progress_callback=progress)
+            if did == self.current:
+                await self.show_message(m)
+        finally:
+            self.attach.setEnabled(True)
+            self.statusBar().clearMessage()
+            if thumb:
+                try:
+                    os.remove(thumb)
+                except OSError:
+                    pass
+
     async def on_new_message(self, event):
         did = event.chat_id
         if did == self.current:
@@ -1253,7 +1365,7 @@ class CatGram(QMainWindow):
             lines.append(f"{tr('username')}: @{username}")
         phone = getattr(ent, "phone", None)
         if phone:
-            lines.append(f"{tr('phone')}: +{phone}")
+            lines.append(f"{tr('phone_lbl')}: +{phone}")
         if members:
             lines.append(f"{tr('members')}: {members}")
         if lines:
