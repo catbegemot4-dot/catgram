@@ -29,7 +29,7 @@
 Нужен Python 3.9+.
 
 ```bash
-git clone https://github.com/<user>/catgram.git
+git clone https://github.com/catbegemot4-dot/catgram.git
 cd catgram
 python3 -m venv .venv && . .venv/bin/activate
 pip install -r requirements.txt
