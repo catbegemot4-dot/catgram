@@ -2,7 +2,7 @@
 <img width="512" height="512" alt="free-icon-release-15238156" src="https://github.com/user-attachments/assets/08c363ad-9c15-4b93-bb93-8b1391cb6246" />
 
 # кто хочет пусть предлогает идеи писать мне на @kotikst:matrix.org или на catbegemot4@gmail.com
-# ничего комерческого,чисто хобби
+
 
 <img width="1346" height="920" alt="Снимок экрана от 2026-11-03 15-28-00" src="https://github.com/user-attachments/assets/80135e2f-acff-4fd2-88e9-7a0540745289" />
 
