@@ -1,4 +1,4 @@
-есть баги
+## есть баги
 <img width="512" height="512" alt="free-icon-release-15238156" src="https://github.com/user-attachments/assets/08c363ad-9c15-4b93-bb93-8b1391cb6246" />
 
 # кто хочет пусть предлогает идеи писать мне на @kotikst:matrix.org или на catbegemot4@gmail.com
