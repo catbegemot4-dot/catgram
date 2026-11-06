@@ -1,3 +1,11 @@
+## есть баги
+<img width="512" height="512" alt="free-icon-release-15238156" src="https://github.com/user-attachments/assets/08c363ad-9c15-4b93-bb93-8b1391cb6246" />
+
+# кто хочет пусть предлогает идеи писать мне на @kotikst:matrix.org или на catbegemot4@gmail.com
+# ничего комерческого,чисто хобби
+
+<img width="1346" height="920" alt="Снимок экрана от 2026-11-03 15-28-00" src="https://github.com/user-attachments/assets/80135e2f-acff-4fd2-88e9-7a0540745289" />
+
 # 🐱 catgram
 
 Маленький клиент Telegram для Linux на **PyQt6 + Telethon**. Один файл, без лишнего:
@@ -8,20 +16,16 @@
 > Это неофициальный клиент. Он не связан с Telegram и работает через ваш личный аккаунт и ваши собственные ключи API.
 
 ## Что умеет
-<img width="1920" height="1036" alt="Снимок экрана от 2026-11-03 01-52-28" src="https://github.com/user-attachments/assets/54d7d206-0afe-4b94-9d01-fdcb10e6eac1" />
-
-
-
-
+- есть звонки
 - список чатов (первые 100) с поиском и счётчиками непрочитанных;
 - **вся история переписки**: сначала последние 50 сообщений, дальше при прокрутке вверх подгружается по 100, пока не дойдёте до начала;
-- фото картинки качаются в фоне, текст появляется сразу;
+- фото и **стикеры** картинками (у анимированных стикеров виден один кадр); картинки качаются в фоне, текст появляется сразу;
 - статус **«котится» / «не котится»** (то есть в сети или нет) в шапке чата, а в списке чатов помечены те, кто котится прямо сейчас;
 - поиск по сообщениям в чате, информация о чате или человеке (клик по шапке);
 - настройки: язык, тема, размер шрифта, режим аватарок (настоящие / только котики / без), проверка обновлений;
-- отправка текстовых сообщений.
+- отправка текстовых сообщений и **видео**: кнопка 📎 слева от поля ввода, прогресс в строке состояния, текст из поля ввода становится подписью к видео.
 
-Чего нет: отправки файлов и медиа, воспроизведения голосовых и видео, анимированных стикеров, звонков, секретных чатов.
+Чего нет: отправки фото и файлов (кроме видео), воспроизведения голосовых и видео, анимированных стикеров, звонков, секретных чатов.
 Остальные вложения показываются меткой вроде `[файл]`.
 
 ## Установка
@@ -34,6 +38,14 @@ cd catgram
 python3 -m venv .venv && . .venv/bin/activate
 pip install -r requirements.txt
 python3 catgram.py
+```
+
+### ffmpeg (необязательно)
+
+Для отправки видео желателен `ffmpeg` (вместе с ним ставится `ffprobe`): с ним catgram передаёт Telegram правильные размеры и длительность и прикладывает кадр-превью. Без него видео тоже уходит, но в чате получателя будет без превью. Лучше всего Telegram играет `.mp4`: файлы других форматов (`.mkv`, `.avi`) могут прийти как обычные файлы, перекодирования catgram не делает.
+
+```bash
+sudo apt install ffmpeg   # Debian/Ubuntu
 ```
 
 ### Ключи API
@@ -83,5 +95,5 @@ Install with `pip install -r requirements.txt`, get your own `api_id`/`api_hash`
 [my.telegram.org](https://my.telegram.org) (API development tools), and run `python3 catgram.py`.
 Full chat history loads as you scroll up, photos and static stickers are shown inline,
 and a header shows whether a contact is online ("purring") or not.
-Text messages only on the sending side. Keep your session file private.
+You can send text and videos (📎 button; install `ffmpeg` for previews and correct video size). Keep your session file private.
 
