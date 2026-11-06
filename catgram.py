@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """catgram — маленький клиент Telegram для Linux (PyQt6 + Telethon)."""
 import asyncio
+import hashlib
 import html
+import inspect
 import json
 import os
 import random
@@ -17,17 +19,17 @@ from pathlib import Path
 from string import Template
 
 import qasync
-from PyQt6.QtCore import QPointF, QSize, Qt, QTimer, QUrl
+from PyQt6.QtCore import QPointF, QRectF, QSize, Qt, QTimer, QUrl
 from PyQt6.QtGui import (
-    QAction, QColor, QIcon, QImage, QImageReader, QKeySequence, QPainter, QPainterPath, QPen,
-    QPixmap,
+    QAction, QColor, QDesktopServices, QIcon, QImage, QImageReader, QKeySequence, QPainter,
+    QPainterPath, QPen, QPixmap,
     QPolygonF, QShortcut, QTextCursor, QTextDocument,
 )
 from PyQt6.QtWidgets import (
     QApplication, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFileDialog, QFormLayout,
-    QHBoxLayout, QInputDialog, QLabel, QLineEdit, QListWidget, QListWidgetItem, QMainWindow,
-    QMessageBox, QPushButton, QSpinBox, QSplitter, QStackedWidget, QTextBrowser,
-    QVBoxLayout, QWidget,
+    QGridLayout, QHBoxLayout, QInputDialog, QLabel, QLineEdit, QListWidget, QListWidgetItem,
+    QMainWindow, QMessageBox, QPushButton, QScrollArea, QSpinBox, QSplitter, QStackedWidget,
+    QTabWidget, QTextBrowser, QVBoxLayout, QWidget,
 )
 from telethon import TelegramClient, events, functions, types
 from telethon.errors import (
@@ -37,7 +39,7 @@ from telethon.errors import (
 from telethon.utils import get_display_name
 
 APP = "catgram"
-VERSION = "0.3.0"
+VERSION = "0.7.3"
 CONFIG_DIR = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / APP
 DATA_DIR = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local/share")) / APP
 CACHE_DIR = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / APP
@@ -118,6 +120,67 @@ TEXT = {
         "hist_start": "· beginning of the conversation ·",
         "hist_loading": "Loading history…",
         "error": "Error",
+        "games": "🎮 Games",
+        "snake": "🐍 Snake",
+        "g2048": "🐾 2048",
+        "emoji": "Emoji",
+        "score": "Score",
+        "best": "Best",
+        "game_over": "Game over",
+        "paused": "Paused",
+        "again": "Press R to play again",
+        "game_hint": "Space — pause · R — new game",
+        "wait_hint": "Play while you wait for a reply 🐾",
+        "stickers": "Stickers",
+        "st_load": "Loading stickers…",
+        "st_none": "No sticker sets",
+        "st_fail": "Couldn't load previews",
+        "st_webp": "This Qt build can't read WebP — stickers won't show. "
+                   "Install dwebp (package libwebp-tools), ffmpeg or ImageMagick",
+        "call": "Call in Telegram",
+        "call_tel": "Call phone number (tel:)",
+        "call_title": "Call",
+        "call_need_lib": "Calls need the ntgcalls library.<br>Install it: "
+                         "<code>pip install ntgcalls</code>",
+        "call_no_audio": "No microphone or speaker found",
+        "call_hint_throw": "Couldn't get the audio device list: {err}",
+        "call_hint_libs": "System sound libraries weren't found. Install them and restart "
+                          "catgram:\nDebian/Ubuntu: sudo apt install libpulse0 libasound2\n"
+                          "Fedora: sudo dnf install pulseaudio-libs alsa-lib\n"
+                          "Arch: sudo pacman -S libpulse alsa-lib\n"
+                          "Check in the terminal: ldconfig -p | grep libpulse",
+        "call_hint_server": "The sound server (PulseAudio/PipeWire) isn't reachable from "
+                            "this session. Start catgram from a regular desktop terminal "
+                            "(not over SSH, not via sudo) and check that sound works.",
+        "call_hint_pactl": "The sound server seems to be running, but ntgcalls sees no "
+                           "devices. Run in the same terminal: pactl list short — and "
+                           "send the output to the developer.",
+        "call_hint_mic": "No microphone is visible (speakers were found). Plug in a "
+                         "microphone or enable it in the system sound settings.",
+        "call_hint_spk": "No speakers are visible (a microphone was found). Check the "
+                         "output devices in the system sound settings.",
+        "call_bad_lib": "The installed ntgcalls {ver} doesn't fit: missing {missing}.<br>"
+                        "Try <code>pip install -U ntgcalls</code> (in the same environment "
+                        "catgram runs in). If that doesn't help, send this text to the "
+                        "developer:<br>{have}",
+        "call_busy": "Another call is in progress",
+        "call_no_phone": "The phone number isn't visible (privacy settings)",
+        "call_people_only": "Calls are only available in chats with people",
+        "call_tel_fail": "No app handles tel: links. Install one (e.g. KDE Connect / "
+                         "GSConnect) or dial the number manually.",
+        "call_dialing": "Calling…",
+        "call_incoming": "Incoming call…",
+        "call_connecting": "Connecting…",
+        "call_talking": "On the call",
+        "call_accept": "Accept",
+        "call_decline": "Decline",
+        "call_end": "End call",
+        "call_mute": "Mute microphone",
+        "call_unmute": "Unmute microphone",
+        "call_ended": "Call ended",
+        "call_missed": "No answer",
+        "call_peer_busy": "Declined or busy",
+        "call_failed": "Connection lost",
     },
     "ru": {
         "title": "🐱 catgram",
@@ -177,6 +240,68 @@ TEXT = {
         "hist_start": "· начало переписки ·",
         "hist_loading": "Загружаю историю…",
         "error": "Ошибка",
+        "games": "🎮 Игры",
+        "snake": "🐍 Змейка",
+        "g2048": "🐾 2048",
+        "emoji": "Смайлики",
+        "score": "Счёт",
+        "best": "Рекорд",
+        "game_over": "Игра окончена",
+        "paused": "Пауза",
+        "again": "Нажмите R, чтобы сыграть ещё раз",
+        "game_hint": "Пробел — пауза · R — заново",
+        "wait_hint": "Сыграйте, пока ждёте ответа 🐾",
+        "stickers": "Стикеры",
+        "st_load": "Загружаю стикеры…",
+        "st_none": "Нет наборов стикеров",
+        "st_fail": "Не удалось загрузить превью",
+        "st_webp": "Эта сборка Qt не читает WebP — стикеры не покажутся. "
+                   "Установите dwebp (пакет libwebp-tools), ffmpeg или ImageMagick",
+        "call": "Позвонить в Telegram",
+        "call_tel": "Позвонить по номеру (tel:)",
+        "call_title": "Звонок",
+        "call_need_lib": "Для звонков нужна библиотека ntgcalls.<br>Установите: "
+                         "<code>pip install ntgcalls</code>",
+        "call_no_audio": "Не найден микрофон или динамики",
+        "call_hint_throw": "Не удалось получить список звуковых устройств: {err}",
+        "call_hint_libs": "Системные библиотеки звука не нашлись. Установите их и "
+                          "перезапустите catgram:\nDebian/Ubuntu: sudo apt install "
+                          "libpulse0 libasound2\nFedora: sudo dnf install pulseaudio-libs "
+                          "alsa-lib\nArch: sudo pacman -S libpulse alsa-lib\n"
+                          "Проверка в терминале: ldconfig -p | grep libpulse",
+        "call_hint_server": "Звуковой сервер (PulseAudio/PipeWire) не доступен из этого "
+                            "окружения. Запустите catgram из обычного терминала "
+                            "десктоп-сессии (не по SSH и не через sudo) и убедитесь, что "
+                            "звук в системе работает.",
+        "call_hint_pactl": "Звуковой сервер вроде работает, но ntgcalls не видит "
+                           "устройств. Выполните в том же терминале: pactl list short — "
+                           "и пришлите вывод разработчику.",
+        "call_hint_mic": "Микрофон не виден (динамики нашлись). Подключите микрофон или "
+                         "включите его в настройках звука системы.",
+        "call_hint_spk": "Динамики не видны (микрофон нашёлся). Проверьте устройства "
+                         "вывода в настройках звука системы.",
+        "call_bad_lib": "Установленная ntgcalls {ver} не подходит: нет {missing}.<br>"
+                        "Попробуйте <code>pip install -U ntgcalls</code> (в том же окружении, "
+                        "где запускается catgram). Если не поможет — пришлите разработчику "
+                        "этот текст:<br>{have}",
+        "call_busy": "Уже идёт другой звонок",
+        "call_no_phone": "Номер телефона не виден (настройки приватности)",
+        "call_people_only": "Звонить можно только в чатах с людьми",
+        "call_tel_fail": "Нет приложения для ссылок tel:. Поставьте любое (например, "
+                         "KDE Connect / GSConnect) или наберите номер вручную.",
+        "call_dialing": "Вызываю…",
+        "call_incoming": "Входящий звонок…",
+        "call_connecting": "Соединяю…",
+        "call_talking": "Разговор",
+        "call_accept": "Принять",
+        "call_decline": "Отклонить",
+        "call_end": "Завершить",
+        "call_mute": "Выключить микрофон",
+        "call_unmute": "Включить микрофон",
+        "call_ended": "Звонок завершён",
+        "call_missed": "Не ответили",
+        "call_peer_busy": "Отклонён или занято",
+        "call_failed": "Связь потеряна",
     },
     "uk": {
         "title": "🐱 catgram",
@@ -236,6 +361,68 @@ TEXT = {
         "hist_start": "· початок листування ·",
         "hist_loading": "Завантажую історію…",
         "error": "Помилка",
+        "games": "🎮 Ігри",
+        "snake": "🐍 Змійка",
+        "g2048": "🐾 2048",
+        "emoji": "Смайлики",
+        "score": "Рахунок",
+        "best": "Рекорд",
+        "game_over": "Гру завершено",
+        "paused": "Пауза",
+        "again": "Натисніть R, щоб зіграти ще раз",
+        "game_hint": "Пробіл — пауза · R — заново",
+        "wait_hint": "Пограйте, поки чекаєте відповіді 🐾",
+        "stickers": "Стікери",
+        "st_load": "Завантажую стікери…",
+        "st_none": "Немає наборів стікерів",
+        "st_fail": "Не вдалося завантажити прев’ю",
+        "st_webp": "Ця збірка Qt не читає WebP — стікери не відобразяться. "
+                   "Встановіть dwebp (пакет libwebp-tools), ffmpeg або ImageMagick",
+        "call": "Подзвонити в Telegram",
+        "call_tel": "Подзвонити за номером (tel:)",
+        "call_title": "Дзвінок",
+        "call_need_lib": "Для дзвінків потрібна бібліотека ntgcalls.<br>Встановіть: "
+                         "<code>pip install ntgcalls</code>",
+        "call_no_audio": "Не знайдено мікрофон або динаміки",
+        "call_hint_throw": "Не вдалося отримати список звукових пристроїв: {err}",
+        "call_hint_libs": "Системних бібліотек звуку не знайдено. Встановіть їх і "
+                          "перезапустіть catgram:\nDebian/Ubuntu: sudo apt install "
+                          "libpulse0 libasound2\nFedora: sudo dnf install pulseaudio-libs "
+                          "alsa-lib\nArch: sudo pacman -S libpulse alsa-lib\n"
+                          "Перевірка в терміналі: ldconfig -p | grep libpulse",
+        "call_hint_server": "Звуковий сервер (PulseAudio/PipeWire) недоступний із цього "
+                            "середовища. Запустіть catgram зі звичайного термінала "
+                            "стільничного сеансу (не через SSH і не через sudo) і "
+                            "переконайтеся, що звук у системі працює.",
+        "call_hint_pactl": "Звуковий сервер, здається, працює, але ntgcalls не бачить "
+                           "пристроїв. Виконайте в тому ж терміналі: pactl list short — "
+                           "і надішліть вивід розробникові.",
+        "call_hint_mic": "Мікрофона не видно (динаміки знайшлися). Підключіть мікрофон "
+                         "або увімкніть його в налаштуваннях звуку системи.",
+        "call_hint_spk": "Динаміків не видно (мікрофон знайшовся). Перевірте пристрої "
+                         "виводу в налаштуваннях звуку системи.",
+        "call_bad_lib": "Встановлена ntgcalls {ver} не підходить: немає {missing}.<br>"
+                        "Спробуйте <code>pip install -U ntgcalls</code> (у тому ж середовищі, "
+                        "де запускається catgram). Якщо не допоможе — надішліть розробникові "
+                        "цей текст:<br>{have}",
+        "call_busy": "Уже триває інший дзвінок",
+        "call_no_phone": "Номер телефону не видно (налаштування приватності)",
+        "call_people_only": "Дзвонити можна лише в чатах з людьми",
+        "call_tel_fail": "Немає застосунку для посилань tel:. Встановіть будь-який "
+                         "(наприклад, KDE Connect / GSConnect) або наберіть номер вручну.",
+        "call_dialing": "Викликаю…",
+        "call_incoming": "Вхідний дзвінок…",
+        "call_connecting": "З’єдную…",
+        "call_talking": "Розмова",
+        "call_accept": "Прийняти",
+        "call_decline": "Відхилити",
+        "call_end": "Завершити",
+        "call_mute": "Вимкнути мікрофон",
+        "call_unmute": "Увімкнути мікрофон",
+        "call_ended": "Дзвінок завершено",
+        "call_missed": "Не відповіли",
+        "call_peer_busy": "Відхилено або зайнято",
+        "call_failed": "Зв’язок втрачено",
     },
 }
 
@@ -267,6 +454,8 @@ DEFAULT_SETTINGS = {
     "show_photos": True,
     "check_updates": False,
     "update_url": "",
+    "best_snake": 0,         # рекорд в змейке
+    "best_2048": 0,          # рекорд в 2048
 }
 
 
@@ -288,6 +477,11 @@ def load_settings():
         s["font_size"] = 14
     if s["avatar_mode"] not in ("real", "cats", "none"):
         s["avatar_mode"] = "real"
+    for k in ("best_snake", "best_2048"):
+        try:
+            s[k] = max(0, int(s[k]))
+        except (TypeError, ValueError):
+            s[k] = 0
     s["show_photos"] = bool(s["show_photos"])
     s["check_updates"] = bool(s["check_updates"])
     s["update_url"] = str(s["update_url"])
@@ -326,6 +520,7 @@ QPushButton {
     background: $input; border: 1px solid $border; border-radius: 8px; padding: 6px 14px;
 }
 QPushButton:hover { border-color: $accent; }
+QPushButton:disabled { background: $panel; color: $dim; border-color: $panel; }
 QPushButton#header {
     text-align: left; border: none; border-radius: 0; background: $panel;
     padding: 6px 10px; font-weight: bold;
@@ -442,6 +637,68 @@ def webp_ok():
     if _WEBP is None:
         _WEBP = b"webp" in {bytes(f).lower() for f in QImageReader.supportedImageFormats()}
     return _WEBP
+
+
+_WEBP_HELP = None
+
+
+def webp_help():
+    """Сможем ли показать WebP вообще: его читает Qt или есть внешний конвертер
+    (dwebp / ffmpeg / ImageMagick / GraphicsMagick)."""
+    global _WEBP_HELP
+    if _WEBP_HELP is None:
+        _WEBP_HELP = webp_ok() or any(
+            shutil.which(x) for x in ("dwebp", "ffmpeg", "magick", "convert", "gm"))
+    return _WEBP_HELP
+
+
+def decode_image(data):
+    """QImage из байтов. Если Qt не знает формат (например WebP — стикеры),
+    пробует внешние конвертеры и переводит картинку в PNG.
+
+    Возвращает пустую QImage, если не смог декодировать.
+    """
+    if not data:
+        return QImage()
+    img = QImage.fromData(data)
+    if not img.isNull():
+        return img
+    fd, src = tempfile.mkstemp(suffix=".webp", prefix="catgram_")
+    os.close(fd)
+    out = src + ".png"
+    try:
+        Path(src).write_bytes(data)
+        for cmd in (
+            ["dwebp", "-quiet", src, "-o", out],
+            ["ffmpeg", "-y", "-v", "error", "-i", src, "-frames:v", "1", out],
+            ["magick", src, out],
+            ["convert", src, out],
+            ["gm", "convert", src, out],
+        ):
+            if not shutil.which(cmd[0]):
+                continue
+            try:
+                subprocess.run(cmd, capture_output=True, timeout=15)
+            except Exception:
+                continue
+            try:
+                if os.path.getsize(out) > 0:
+                    img = QImage(out)
+                    if not img.isNull():
+                        return img
+            except OSError:
+                pass
+            try:   # этот конвертер не справился — чистим и пробуем следующий
+                os.remove(out)
+            except OSError:
+                pass
+    finally:
+        for p in (src, out):
+            try:
+                os.remove(p)
+            except OSError:
+                pass
+    return QImage()
 
 
 def prepare_video(path):
@@ -647,6 +904,537 @@ def version_tuple(v):
     return tuple(int(x) for x in re.findall(r"\d+", v))
 
 
+# ---------- смайлики и мини-игры ----------
+
+# Котики идут первыми — это же catgram. Клик по смайлику вставляет его в поле ввода.
+EMOJIS = [
+    "🐱", "😺", "😸", "😹", "😻", "😼", "😽", "🙀", "😿", "🐾",
+    "😀", "😁", "😅", "😂", "🤣", "😉", "😊", "😍", "🥰", "😘",
+    "😜", "🤪", "🥳", "😎", "🤩", "🤔", "🤨", "😐", "😴", "🤤",
+    "🥺", "😳", "😢", "😭", "😤", "😠", "🤯", "😱", "🤗", "🤫",
+    "🤭", "🫠", "🙃", "😇", "👀", "👻",
+    "❤️", "🧡", "💛", "💚", "💙", "💜", "🖤", "🤍", "🤎", "💔",
+    "💕", "💞", "💓", "💗", "💖", "💘", "💝", "💋",
+    "👍", "👎", "👌", "✌️", "🤞", "🤙", "🫶", "🫡", "🙏", "🤝",
+    "👋", "🫵", "🤲", "👏", "🙌", "💪", "🫂",
+    "🐭", "🐹", "🐰", "🦊", "🐻", "🐼", "🐨", "🐯", "🦁", "🐮",
+    "🐷", "🐸", "🐵", "🦄", "🐝", "🦋", "🐢", "🐙", "🦀", "🐠",
+    "🍕", "🍔", "🍟", "🌭", "🍿", "🧁", "🍰", "🎂", "🍫", "🍩",
+    "🍪", "🍭", "☕", "🍵", "🧋", "🍺", "🍷", "🥂", "🍾",
+    "🔥", "✨", "⭐", "🌟", "💫", "🎉", "🎊", "🎁", "🎈", "💯",
+    "🎮", "🎲", "🌸", "🌈", "☀️", "🌙", "⚡", "❄️", "💤", "💬",
+]
+
+MOVES = {   # стрелки и WASD — для обеих игр
+    Qt.Key.Key_Left: (-1, 0), Qt.Key.Key_A: (-1, 0),
+    Qt.Key.Key_Right: (1, 0), Qt.Key.Key_D: (1, 0),
+    Qt.Key.Key_Up: (0, -1), Qt.Key.Key_W: (0, -1),
+    Qt.Key.Key_Down: (0, 1), Qt.Key.Key_S: (0, 1),
+}
+
+
+class SnakeGame(QWidget):
+    """Котозмейка ловит мышей, пока собеседник печатает ответ.
+
+    Управление: стрелки / WASD, пробел — пауза, R — начать заново.
+    """
+
+    CELL = 22
+    COLS = 28
+    ROWS = 18
+    TOP = 34           # полоска сверху: счёт и подсказка
+    TICK = 130         # мс между шагами
+
+    def __init__(self):
+        super().__init__()
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.setFixedSize(self.COLS * self.CELL, self.TOP + self.ROWS * self.CELL)
+        self.best = S.get("best_snake", 0)
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self.step)
+        self.new_game()
+
+    def new_game(self):
+        cx, cy = self.COLS // 2, self.ROWS // 2
+        self.snake = [(cx, cy), (cx - 1, cy), (cx - 2, cy)]
+        self.dir = (1, 0)
+        self.next_dir = (1, 0)
+        self.score = 0
+        self.dead = False
+        self.paused = False
+        self.mouse = None
+        self.place_mouse()
+        self.timer.start(self.TICK)
+        self.update()
+
+    def place_mouse(self):
+        free = [(x, y) for x in range(self.COLS) for y in range(self.ROWS)
+                if (x, y) not in self.snake]
+        self.mouse = random.choice(free) if free else None
+
+    def hideEvent(self, e):
+        self.paused = True          # таб скрыли — игра сама встаёт на паузу
+        self.update()
+        super().hideEvent(e)
+
+    def keyPressEvent(self, e):
+        if self.dead:
+            if e.key() == Qt.Key.Key_R:
+                self.new_game()
+                e.accept()
+            return
+        d = MOVES.get(e.key())
+        if d:
+            if d[0] != -self.dir[0] or d[1] != -self.dir[1]:   # не разворачиваться на 180°
+                self.next_dir = d
+            self.paused = False    # любое движение снимает паузу
+        elif e.key() == Qt.Key.Key_Space:
+            self.paused = not self.paused
+        elif e.key() == Qt.Key.Key_R:
+            self.new_game()
+        else:
+            super().keyPressEvent(e)
+            return
+        self.update()
+        e.accept()
+
+    def step(self):
+        if self.paused or self.dead:
+            return
+        self.dir = self.next_dir
+        hx, hy = self.snake[0]
+        nx, ny = hx + self.dir[0], hy + self.dir[1]
+        if not (0 <= nx < self.COLS and 0 <= ny < self.ROWS) or (nx, ny) in self.snake[:-1]:
+            self.dead = True
+            self.timer.stop()
+            self.update()
+            return
+        self.snake.insert(0, (nx, ny))
+        if (nx, ny) == self.mouse:
+            self.score += 1
+            if self.score > self.best:       # рекорд пишем сразу
+                self.best = self.score
+                S["best_snake"] = self.best
+                save_settings()
+            self.place_mouse()
+            self.timer.setInterval(max(60, self.TICK - 3 * self.score))   # чуть быстрее
+        else:
+            self.snake.pop()
+        self.update()
+
+    def paintEvent(self, _e):
+        P = pal()
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        p.setPen(Qt.PenStyle.NoPen)
+        p.setBrush(QColor(P["panel"]))
+        p.drawRect(self.rect())
+        p.setBrush(QColor(P["bg"]))
+        p.drawRoundedRect(QRectF(0, self.TOP, self.width(), self.height() - self.TOP), 8, 8)
+
+        hud = p.font()
+        hud.setPointSize(max(8, S["font_size"] - 2))
+        p.setFont(hud)
+        p.setPen(QColor(P["dim"]))
+        p.drawText(QRectF(8, 4, self.width() / 2, self.TOP - 8),
+                   Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
+                   f'{tr("score")}: {self.score}   {tr("best")}: {self.best}')
+        p.drawText(QRectF(self.width() / 2, 4, self.width() / 2 - 8, self.TOP - 8),
+                   Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter,
+                   tr("game_hint"))
+
+        def cell(x, y):
+            return x * self.CELL, self.TOP + y * self.CELL, self.CELL, self.CELL
+
+        if self.mouse is not None:   # мышь: серенькая, с розовыми ушками и хвостиком
+            mx, my, mw, mh = cell(*self.mouse)
+            p.setPen(Qt.PenStyle.NoPen)
+            p.setBrush(QColor("#a5adcb"))
+            p.drawEllipse(QRectF(mx + mw * 0.2, my + mh * 0.28, mw * 0.6, mh * 0.48))
+            p.setBrush(QColor("#ed8796"))
+            p.drawEllipse(QRectF(mx + mw * 0.2, my + mh * 0.12, mw * 0.2, mh * 0.22))
+            p.drawEllipse(QRectF(mx + mw * 0.6, my + mh * 0.12, mw * 0.2, mh * 0.22))
+            p.setPen(QPen(QColor("#a5adcb"), 2))
+            p.drawLine(int(mx + mw * 0.8), int(my + mh * 0.55),
+                       int(mx + mw * 0.97), int(my + mh * 0.78))
+
+        body, head = QColor(P["inn"]), QColor(P["out"])
+        p.setPen(Qt.PenStyle.NoPen)
+        for i, (x, y) in enumerate(self.snake):
+            cx0, cy0, cw, ch = cell(x, y)
+            p.setBrush(head if i == 0 else body)
+            p.drawRoundedRect(QRectF(cx0 + 1, cy0 + 1, cw - 2, ch - 2), 6, 6)
+
+        # мордочка на голове: ушки, глаза и усы
+        hx, hy, hw, hh = cell(*self.snake[0])
+        p.setBrush(head)
+        for sx in (-1, 1):
+            p.drawPolygon(QPolygonF([
+                QPointF(hx + hw / 2 + sx * hw * 0.34, hy + 4),
+                QPointF(hx + hw / 2 + sx * hw * 0.08, hy + 4),
+                QPointF(hx + hw / 2 + sx * hw * 0.24, hy - hh * 0.06)]))
+        dx, dy = self.dir
+        ex = hx + hw * (0.5 + dx * 0.22)
+        ey = hy + hh * (0.44 + dy * 0.18)
+        px, py = -dy, dx
+        for s in (-1, 1):
+            p.setBrush(QColor("white"))
+            p.drawEllipse(QRectF(ex + px * s * hw * 0.17 - hw * 0.07,
+                                 ey + py * s * hh * 0.17 - hh * 0.09, hw * 0.14, hh * 0.18))
+            p.setBrush(QColor("#2d2f3d"))
+            p.drawEllipse(QRectF(ex + px * s * hw * 0.17 - hw * 0.035,
+                                 ey + py * s * hh * 0.17 - hh * 0.045, hw * 0.07, hh * 0.09))
+        p.setPen(QPen(QColor("#2d2f3d"), 1))
+        for s in (-1, 1):
+            p.drawLine(int(ex + px * s * hw * 0.3), int(ey + py * s * hh * 0.3),
+                       int(ex + px * s * hw * 0.48), int(ey + py * s * hh * 0.24))
+
+        if self.paused or self.dead:
+            p.setPen(Qt.PenStyle.NoPen)
+            p.setBrush(QColor(0, 0, 0, 140))
+            p.drawRoundedRect(QRectF(0, self.TOP, self.width(), self.height() - self.TOP), 8, 8)
+            big = p.font()
+            big.setBold(True)
+            big.setPointSize(max(10, S["font_size"]))
+            p.setFont(big)
+            p.setPen(QColor("white"))
+            msg = tr("game_over") if self.dead else tr("paused")
+            if self.dead:
+                msg += f'\n{tr("score")}: {self.score}\n{tr("again")}'
+            p.drawText(QRectF(0, self.TOP, self.width(), self.height() - self.TOP),
+                       Qt.AlignmentFlag.AlignCenter, msg)
+        p.end()
+
+
+class Game2048(QWidget):
+    """2048: собирай крупные плитки, пока в чате молчат.
+
+    Управление: стрелки / WASD, R — начать заново.
+    """
+
+    N = 4
+    CELL = 66
+    GAP = 10
+    TOP = 34
+    TILE = {   # значение -> (цвет плитки, цвет цифры)
+        2: ("#8aadf4", "#1e2030"), 4: ("#7dc4e8", "#1e2030"),
+        8: ("#a6da95", "#1e2030"), 16: ("#eed49f", "#1e2030"),
+        32: ("#f5a97f", "#1e2030"), 64: ("#ed8796", "#ffffff"),
+        128: ("#c6a0f6", "#ffffff"), 256: ("#f5bde6", "#1e2030"),
+        512: ("#8bd5ca", "#1e2030"), 1024: ("#ea76cb", "#ffffff"),
+        2048: ("#df8e1d", "#ffffff"),
+    }
+
+    def __init__(self):
+        super().__init__()
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        side = self.N * self.CELL + (self.N + 1) * self.GAP
+        self.setFixedSize(side, self.TOP + side)
+        self.best = S.get("best_2048", 0)
+        self.new_game()
+
+    def new_game(self):
+        self.board = [[0] * self.N for _ in range(self.N)]
+        self.score = 0
+        self.over = False
+        self.spawn()
+        self.spawn()
+        self.update()
+
+    def spawn(self):
+        empty = [(y, x) for y in range(self.N) for x in range(self.N) if not self.board[y][x]]
+        if empty:
+            y, x = random.choice(empty)
+            self.board[y][x] = 4 if random.random() < 0.1 else 2
+
+    def keyPressEvent(self, e):
+        if self.over:
+            if e.key() == Qt.Key.Key_R:
+                self.new_game()
+                e.accept()
+            return
+        d = MOVES.get(e.key())
+        if d:
+            self.move(*d)
+        elif e.key() == Qt.Key.Key_R:
+            self.new_game()
+        else:
+            super().keyPressEvent(e)
+            return
+        e.accept()
+
+    @staticmethod
+    def slide(seq):
+        """Сдвигает один ряд к его началу, склеивая одинаковые соседние плитки."""
+        vals = [v for v in seq if v]
+        out, i, gained = [], 0, 0
+        while i < len(vals):
+            if i + 1 < len(vals) and vals[i] == vals[i + 1]:
+                out.append(vals[i] * 2)
+                gained += vals[i] * 2
+                i += 2
+            else:
+                out.append(vals[i])
+                i += 1
+        out += [0] * (len(seq) - len(out))
+        return out, gained
+
+    def move(self, dx, dy):
+        before = [v for row in self.board for v in row]
+        gained = 0
+        for i in range(self.N):
+            if dx:
+                seq = [self.board[i][x] for x in range(self.N)]
+                if dx > 0:
+                    seq.reverse()
+                line, g = self.slide(seq)
+                gained += g
+                if dx > 0:
+                    line.reverse()
+                for x in range(self.N):
+                    self.board[i][x] = line[x]
+            else:
+                seq = [self.board[y][i] for y in range(self.N)]
+                if dy > 0:
+                    seq.reverse()
+                line, g = self.slide(seq)
+                gained += g
+                if dy > 0:
+                    line.reverse()
+                for y in range(self.N):
+                    self.board[y][i] = line[y]
+        if [v for row in self.board for v in row] == before:
+            return
+        self.score += gained
+        if self.score > self.best:      # рекорд пишем сразу
+            self.best = self.score
+            S["best_2048"] = self.best
+            save_settings()
+        self.spawn()
+        if not self.can_move():
+            self.over = True
+        self.update()
+
+    def can_move(self):
+        for y in range(self.N):
+            for x in range(self.N):
+                v = self.board[y][x]
+                if not v or (x + 1 < self.N and v == self.board[y][x + 1]) \
+                        or (y + 1 < self.N and v == self.board[y + 1][x]):
+                    return True
+        return False
+
+    def paintEvent(self, _e):
+        P = pal()
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        p.setPen(Qt.PenStyle.NoPen)
+        p.setBrush(QColor(P["panel"]))
+        p.drawRect(self.rect())
+
+        hud = p.font()
+        hud.setPointSize(max(8, S["font_size"] - 2))
+        p.setFont(hud)
+        p.setPen(QColor(P["dim"]))
+        p.drawText(QRectF(8, 4, self.width() - 16, self.TOP - 8),
+                   Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
+                   f'{tr("score")}: {self.score}   {tr("best")}: {self.best}')
+        p.drawText(QRectF(8, 4, self.width() - 16, self.TOP - 8),
+                   Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter, "R — ⟳")
+
+        p.setPen(Qt.PenStyle.NoPen)
+        p.setBrush(QColor(P["bg"]))
+        p.drawRoundedRect(QRectF(0, self.TOP, self.width(), self.height() - self.TOP), 8, 8)
+        for y in range(self.N):
+            for x in range(self.N):
+                cx = self.GAP + x * (self.CELL + self.GAP)
+                cy = self.TOP + self.GAP + y * (self.CELL + self.GAP)
+                v = self.board[y][x]
+                bg, fg = self.TILE.get(v, ("#e64553", "#ffffff"))
+                p.setBrush(QColor(P["input"]) if not v else QColor(bg))
+                p.drawRoundedRect(QRectF(cx, cy, self.CELL, self.CELL), 8, 8)
+                if v:
+                    tf = p.font()
+                    tf.setBold(True)
+                    tf.setPointSize(18 if v < 100 else 15 if v < 1000 else 12)
+                    p.setFont(tf)
+                    p.setPen(QColor(fg))
+                    p.drawText(QRectF(cx, cy, self.CELL, self.CELL),
+                               Qt.AlignmentFlag.AlignCenter, str(v))
+                    p.setPen(Qt.PenStyle.NoPen)
+                    p.setFont(hud)
+        if self.over:
+            p.setBrush(QColor(0, 0, 0, 140))
+            p.drawRoundedRect(QRectF(0, self.TOP, self.width(), self.height() - self.TOP), 8, 8)
+            big = p.font()
+            big.setBold(True)
+            big.setPointSize(max(10, S["font_size"]))
+            p.setFont(big)
+            p.setPen(QColor("white"))
+            p.drawText(QRectF(0, self.TOP, self.width(), self.height() - self.TOP),
+                       Qt.AlignmentFlag.AlignCenter,
+                       f'{tr("game_over")}\n{tr("score")}: {self.score}\n{tr("again")}')
+        p.end()
+
+
+class StickerPanel(QDialog):
+    """Панель стикеров: выбери набор сверху, клик по стикеру отправит его в открытый чат.
+
+    Превью качаются в фоне (по четыре за раз) и остаются в кэше до конца работы catgram.
+    """
+
+    COLS = 6
+
+    def __init__(self, win):
+        super().__init__(win)
+        self.win = win
+        self.setWindowTitle(tr("stickers"))
+        self.setModal(False)
+        self.resize(480, 540)
+        self.sets = []          # наборы стикеров пользователя
+        self.docs = {}          # id документа -> Document (по нему отправляем)
+        self.thumbs = {}         # id документа -> QPixmap-превью
+        self.sem = asyncio.Semaphore(4)   # не больше 4 превью одновременно
+        self.set_epoch = 0      # выбор другого набора отменяет прошлую загрузку
+        self.total = self.done = self.loaded = 0   # счётчики превью текущего набора
+        self.first_error = None
+
+        self.combo = QComboBox()
+        self.combo.currentIndexChanged.connect(self.on_set)
+        self.status = QLabel(tr("st_load"))
+        self.status.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.scroll = QScrollArea()
+        self.scroll.setWidgetResizable(True)
+
+        lay = QVBoxLayout(self)
+        lay.addWidget(self.combo)
+        lay.addWidget(self.status)
+        lay.addWidget(self.scroll, 1)
+        self.win.spawn(self.load_sets())
+
+    async def load_sets(self):
+        try:
+            res = await self.win.client(functions.messages.GetAllStickersRequest(hash=0))
+        except Exception:
+            res = None
+        self.sets = list(getattr(res, "sets", None) or [])
+        if not self.sets:
+            self.status.setText(tr("st_none"))
+            return
+        self.combo.currentIndexChanged.disconnect(self.on_set)   # addItem не дёргает загрузку
+        for s in self.sets:
+            self.combo.addItem(s.title or "?", s.id)
+        self.combo.currentIndexChanged.connect(self.on_set)
+        self.on_set(self.combo.currentIndex())
+
+    def on_set(self, index):
+        if 0 <= index < len(self.sets):
+            self.win.spawn(self.load_set(index))
+
+    async def load_set(self, index):
+        s = self.sets[index]
+        self.set_epoch += 1
+        epoch = self.set_epoch
+        self.status.show()
+        self.status.setText(tr("st_load"))
+        inner = QWidget()
+        grid = QGridLayout(inner)
+        grid.setSpacing(2)
+        self.scroll.setWidget(inner)
+        try:
+            full = await self.win.client(functions.messages.GetStickerSetRequest(
+                stickerset=types.InputStickerSetID(id=s.id, access_hash=s.access_hash),
+                hash=0))
+        except Exception as e:
+            if epoch == self.set_epoch:
+                self.status.setText(f"{tr('error')}: {e}")
+            return
+        if epoch != self.set_epoch:
+            return   # уже выбрали другой набор
+        docs = list(getattr(full, "documents", None) or [])
+        emoji = {}   # id документа -> эмодзи пака
+        for pack in getattr(full, "packs", None) or []:
+            for did in pack.documents:
+                emoji[did] = pack.emoticon
+        row = col = 0
+        self.total, self.done, self.loaded, self.first_error = len(docs), 0, 0, None
+        for doc in docs:
+            self.docs[doc.id] = doc
+            b = QPushButton()
+            b.setFixedSize(72, 72)
+            b.setIconSize(QSize(64, 64))   # без этого Qt рисовал бы превью крошечным
+            tip = emoji.get(doc.id, "")
+            b.setToolTip(tip)
+            if doc.id in self.thumbs:
+                b.setIcon(QIcon(self.thumbs[doc.id]))
+                self.done += 1
+                self.loaded += 1
+            else:
+                b.setText(tip or "🐾")   # пока превью не скачалось
+                self.win.spawn(self.fetch_thumb(doc, b, epoch))
+            b.clicked.connect(lambda *_, d=doc: self.win.spawn(
+                self.win.send_sticker(self.win.current, d)))
+            grid.addWidget(b, row, col)
+            col += 1
+            if col >= self.COLS:
+                col = 0
+                row += 1
+        if not docs:
+            self.status.setText(tr("st_none"))
+        else:
+            self.tick()   # превью из кэша могли закрыть всю работу — обновить счётчик
+
+    def tick(self):
+        """Строка под списком наборов: сколько превью уже готово, или что случилось."""
+        if self.done < self.total:
+            self.status.show()
+            self.status.setText(f"🐾 {self.done}/{self.total}")
+        elif self.loaded:
+            self.status.hide()
+        else:
+            self.status.show()
+            if self.first_error:
+                self.status.setText(f"{tr('error')}: {self.first_error}")
+            elif not webp_help():
+                self.status.setText(tr("st_webp"))
+            else:
+                self.status.setText(tr("st_fail"))
+
+    async def fetch_thumb(self, doc, btn, epoch):
+        data, err = None, None
+        try:
+            async with self.sem:
+                thumb = pick_thumb(doc)
+                try:
+                    data = await self.win.client.download_media(doc, file=bytes, thumb=thumb)
+                except Exception as e:
+                    err = str(e)
+                if not data and doc.size <= 400_000:
+                    # запасной путь: маленький стикер (например статичный) качаем целиком
+                    try:
+                        data = await self.win.client.download_media(doc, file=bytes)
+                    except Exception as e:
+                        err = err or str(e)
+        except Exception as e:
+            err = err or str(e)
+        if epoch != self.set_epoch:
+            return   # выбрали другой набор — эта загрузка уже никому не нужна
+        img = decode_image(data)
+        if img.isNull():
+            if self.first_error is None and err:
+                self.first_error = err   # webp без поддержки Qt сюда не попадёт — он ниже
+        else:
+            pm = QPixmap.fromImage(img).scaled(
+                64, 64, Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation)
+            self.thumbs[doc.id] = pm
+            self.loaded += 1
+            btn.setText("")
+            btn.setIcon(QIcon(pm))
+        self.done += 1
+        self.tick()
+
+
 # ---------- окно ----------
 
 def media_tag(m):
@@ -661,6 +1449,554 @@ def media_tag(m):
     if m.document:
         return tr("m_file")
     return tr("m_other") if m.media else ""
+
+
+# ---------- звонки ----------
+#
+# Звонок 1:1 состоит из двух частей:
+#   1. сигнализация — запрос, обмен ключами Диффи-Хеллмана, подтверждение, отбой;
+#      её ведёт Telethon (запросы phone.* и обновления UpdatePhoneCall*);
+#   2. голос и шифрование — библиотека ntgcalls (pip install ntgcalls).
+# Без ntgcalls catgram работает как раньше, просто кнопка звонка покажет подсказку.
+
+try:
+    import ntgcalls
+except Exception:   # не установлена или не подошла сборка
+    ntgcalls = None
+
+CALL_STALE = 90   # секунд: более старые «входящие» из очереди обновлений игнорируем
+CALL_RATE = 48000   # частота дискретизации микрофона и динамиков
+CALL_NTG_METHODS = ("create_p2p_call", "set_stream_sources", "init_exchange", "exchange_keys",
+                    "connect_p2p", "send_signaling_data", "on_signaling_data",
+                    "on_connection_change", "get_media_devices", "get_protocol",
+                    "stop", "mute", "unmute")
+CALL_NTG_NAMES = ("AudioDescription", "MediaDescription", "MediaSource", "StreamMode",
+                  "DhConfig", "RTCServer")
+
+
+async def _run(fn, *args):
+    """Вызывает метод ntgcalls: в одних версиях он синхронный, в других — async."""
+    res = fn(*args)
+    return await res if inspect.isawaitable(res) else res
+
+
+def audio_hints(devs, kind):
+    """Разбирается, почему ntgcalls не видит звуковое устройство (kind: 'mic' | 'spk').
+
+    На Linux ntgcalls перечисляет устройства через PulseAudio (подключаясь к уже
+    работающему серверу, без его автозапуска) или, если libpulse не загрузилась,
+    через ALSA. Пустой список — почти всегда одна из причин ниже; вместо сухого
+    «не найдено» показываем подходящую подсказку. devs=None — список не получился.
+    """
+    import ctypes
+
+    def _lib_loads():
+        # проверяем так же, как это делает сам ntgcalls: dlopen по имени библиотеки
+        # (ctypes.util.find_library сюда не годится — она может ошибочно вернуть None)
+        for name in ("libpulse.so.0", "libasound.so.2"):
+            try:
+                ctypes.CDLL(name)
+                return True
+            except OSError:
+                pass
+        return False
+
+    if devs is not None and (devs.microphone or devs.speaker):
+        # что-то система всё-таки видит — не хватает конкретного устройства
+        return tr("call_hint_mic" if kind == "mic" else "call_hint_spk")
+    try:
+        if not _lib_loads():
+            return tr("call_hint_libs")   # ни libpulse, ни libasound — dlopen в ntgcalls пуст
+        xdg = os.environ.get("XDG_RUNTIME_DIR") or ""
+        if not (Path(xdg) / "pulse" / "native").exists() and not os.environ.get("PULSE_SERVER"):
+            return tr("call_hint_server")   # сокет звукового сервера недоступен из этой сессии
+    except Exception:
+        pass   # сами проверки упали — покажем общий вариант ниже
+    return tr("call_hint_pactl")   # странно: сервер есть, а устройств не видно
+
+
+class CallDialog(QDialog):
+    """Окно звонка: аватарка, имя, статус/таймер и кнопки. Логика — в Calls."""
+
+    def __init__(self, win, did, name, incoming):
+        super().__init__(win)
+        self.setWindowTitle(tr("call_title"))
+        self.setModal(False)
+        self.setMinimumWidth(320)
+        self.on_accept = self.on_hangup = self.on_mute = None   # их выставляет Calls
+        self.over = False     # звонок закончен, закрытие окна больше не «кладёт трубку»
+        self.muted = False
+        self.t0 = None
+
+        icon = win.icon_for(did)
+        pic = QLabel()
+        pic.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        pic.setPixmap(icon.pixmap(QSize(120, 120)) if not icon.isNull()
+                      else cat_pixmap(did, 120))
+        who = QLabel(name)
+        who.setTextFormat(Qt.TextFormat.PlainText)
+        who.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        f = who.font()
+        f.setBold(True)
+        f.setPointSize(f.pointSize() + 3)
+        who.setFont(f)
+        self.status = QLabel()
+        self.status.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.status.setWordWrap(True)   # подсказки об ошибках бывают длинными
+
+        self.accept_btn = QPushButton("✅ " + tr("call_accept"))
+        self.accept_btn.clicked.connect(lambda *_: self.on_accept and self.on_accept())
+        self.mute_btn = QPushButton("🎙 " + tr("call_mute"))
+        self.mute_btn.clicked.connect(self.toggle_mute)
+        self.hang_btn = QPushButton()
+        self.hang_btn.clicked.connect(self.close)   # closeEvent и положит трубку
+
+        row = QHBoxLayout()
+        row.addWidget(self.accept_btn)
+        row.addWidget(self.mute_btn)
+        row.addWidget(self.hang_btn)
+        lay = QVBoxLayout(self)
+        lay.addWidget(pic)
+        lay.addWidget(who)
+        lay.addWidget(self.status)
+        lay.addLayout(row)
+
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self.tick)
+        self.set_state("incoming" if incoming else "dialing")
+
+    def set_state(self, state):
+        """incoming | dialing | connecting | talking"""
+        self.accept_btn.setVisible(state == "incoming")
+        self.mute_btn.setVisible(state == "talking")
+        self.hang_btn.setText("📵 " + tr("call_decline" if state == "incoming" else "call_end"))
+        if state == "talking":
+            self.t0 = time.monotonic()
+            self.timer.start(1000)
+            self.tick()
+        else:
+            self.status.setText(tr({"incoming": "call_incoming", "dialing": "call_dialing",
+                                    "connecting": "call_connecting"}[state]))
+
+    def tick(self):
+        s = int(time.monotonic() - self.t0)
+        self.status.setText(f"{tr('call_talking')} · {s // 60:02d}:{s % 60:02d}")
+
+    def toggle_mute(self):
+        self.muted = not self.muted
+        self.mute_btn.setText(("🔇 " + tr("call_unmute")) if self.muted
+                              else ("🎙 " + tr("call_mute")))
+        if self.on_mute:
+            self.on_mute(self.muted)
+
+    def finish(self, text):
+        """Звонок закончился: показываем итог и через пару секунд закрываем окно."""
+        self.over = True
+        self.timer.stop()
+        self.status.setText(text)
+        self.accept_btn.hide()
+        self.mute_btn.hide()
+        self.hang_btn.setEnabled(False)
+        QTimer.singleShot(2000, self.close)
+
+    def closeEvent(self, event):
+        if not self.over:   # закрыли крестиком / нажали «Отклонить» посреди звонка
+            self.over = True
+            if self.on_hangup:
+                self.on_hangup()
+        event.accept()
+
+
+class Calls:
+    """Звонки 1:1: состояние текущего звонка, обработка обновлений Telegram, ntgcalls."""
+
+    def __init__(self, win):
+        self.win = win
+        self.client = win.client
+        self.ntg = None     # NTgCalls создаётся лениво, при первом звонке
+        self.loop = None    # цикл asyncio — в него возвращаются колбэки из потоков ntgcalls
+        self.call = None    # словарь с состоянием текущего звонка (или None)
+        self.dlg = None
+
+    def attach(self):
+        self.client.add_event_handler(
+            self.on_update,
+            events.Raw((types.UpdatePhoneCall, types.UpdatePhoneCallSignalingData)))
+
+    # --- ntgcalls ---
+
+    def ensure_ntg(self):
+        if ntgcalls is None:
+            raise RuntimeError(tr("call_need_lib"))
+        if self.ntg is None:
+            ntg = ntgcalls.NTgCalls()
+            # всё, что звонки 1:1 берут у ntgcalls; если чего-то нет — говорим прямо,
+            # а не падаем на первом попавшемся AttributeError
+            missing = [m for m in CALL_NTG_METHODS if not hasattr(ntg, m)]
+            missing += ["ntgcalls." + n for n in CALL_NTG_NAMES if not hasattr(ntgcalls, n)]
+            if missing:
+                try:
+                    from importlib.metadata import version
+                    ver = version("ntgcalls")
+                except Exception:
+                    ver = "?"
+                have = ", ".join(sorted(a for a in dir(ntg) if not a.startswith("_")))
+                raise RuntimeError(tr("call_bad_lib").format(
+                    ver=ver, missing=", ".join(missing), have=have))
+            ntg.on_signaling_data(self._on_signaling)
+            if hasattr(ntg, "on_connection_change"):
+                ntg.on_connection_change(self._on_net)
+            self.ntg = ntg
+        return self.ntg
+
+    async def media(self):
+        """Что отправляем в линию: микрофон — первое устройство из списка системы.
+
+        В ntgcalls 3.x медиа задаётся отдельно от create_p2p_call: сначала
+        StreamMode.CAPTURE (наш звук), после connect_p2p — StreamMode.PLAYBACK.
+        Если устройств не видно — не просто «не найдено», а причина и что чинить.
+        """
+        try:
+            devs = await _run(self.ntg.get_media_devices)
+        except Exception as e:
+            raise RuntimeError(f"{tr('call_no_audio')}\n\n"
+                               f"{tr('call_hint_throw').format(err=e)}\n"
+                               f"{tr('call_hint_server')}") from e
+        if not devs.microphone:
+            raise RuntimeError(f"{tr('call_no_audio')}\n\n{audio_hints(devs, 'mic')}")
+        return ntgcalls.MediaDescription(
+            microphone=ntgcalls.AudioDescription(
+                media_source=ntgcalls.MediaSource.DEVICE, input=devs.microphone[0].metadata,
+                sample_rate=CALL_RATE, channel_count=1, keep_open=False),
+            speaker=None, camera=None, screen=None)
+
+    async def playback_media(self):
+        """Где слушаем собеседника.
+
+        Особенность ntgcalls: входящий звук выдаётся в слот microphone описания
+        PLAYBACK (внутри это addTrack(Playback, Microphone)), поэтому туда
+        попадает устройство динамиков — это не опечатка.
+        """
+        try:
+            devs = await _run(self.ntg.get_media_devices)
+        except Exception as e:
+            raise RuntimeError(f"{tr('call_no_audio')}\n\n"
+                               f"{tr('call_hint_throw').format(err=e)}\n"
+                               f"{tr('call_hint_server')}") from e
+        if not devs.speaker:
+            raise RuntimeError(f"{tr('call_no_audio')}\n\n{audio_hints(devs, 'spk')}")
+        return ntgcalls.MediaDescription(
+            microphone=ntgcalls.AudioDescription(
+                media_source=ntgcalls.MediaSource.DEVICE, input=devs.speaker[0].metadata,
+                sample_rate=CALL_RATE, channel_count=1, keep_open=False),
+            speaker=None, camera=None, screen=None)
+
+    def protocol(self):
+        p = self.ntg.get_protocol()
+        return types.PhoneCallProtocol(
+            min_layer=p.min_layer, max_layer=p.max_layer,
+            library_versions=list(p.library_versions),
+            udp_p2p=p.udp_p2p, udp_reflector=p.udp_reflector)
+
+    @staticmethod
+    def server(c):
+        """PhoneConnection / PhoneConnectionWebrtc из Telegram → RTCServer для ntgcalls."""
+        if hasattr(types, "PhoneConnectionWebrtc") and isinstance(c, types.PhoneConnectionWebrtc):
+            return ntgcalls.RTCServer(c.id, c.ip, c.ipv6, c.port, c.username, c.password,
+                                      c.turn, c.stun, False, None)
+        # старый UDP-рефлектор: кредов нет, зато есть peer_tag
+        return ntgcalls.RTCServer(c.id, c.ip, c.ipv6, c.port, None, None, True, False,
+                                  bool(getattr(c, "tcp", False)), getattr(c, "peer_tag", None))
+
+    async def dh_config(self):
+        cfg = await self.client(functions.messages.GetDhConfigRequest(
+            version=0, random_length=256))
+        return ntgcalls.DhConfig(g=cfg.g, p=cfg.p, random=cfg.random)
+
+    # колбэки ntgcalls приходят из его собственного потока — возвращаемся в цикл asyncio
+
+    def _on_signaling(self, uid, data):
+        if self.loop is not None:
+            data = bytes(data)
+            self.loop.call_soon_threadsafe(
+                lambda: self.win.spawn(self.send_signaling(uid, data)))
+
+    def _on_net(self, uid, info):
+        st = getattr(info, "state", info)
+        name = getattr(st, "name", None) or str(st).split(".")[-1]
+        key = {"CONNECTED": "up", "FAILED": "down", "TIMEOUT": "down"}.get(name.upper())
+        if key and self.loop is not None:
+            self.loop.call_soon_threadsafe(self._net_changed, uid, key)
+
+    def _net_changed(self, uid, key):
+        c = self.call
+        if not c or c["uid"] != uid:
+            return
+        if key == "up":
+            self.set_talking(c)
+        else:
+            self.win.spawn(self.hangup(types.PhoneCallDiscardReasonDisconnect(),
+                                       tr("call_failed")))
+
+    def set_talking(self, c):
+        if self.call is c and not c.get("started"):
+            c["started"] = time.monotonic()
+            if self.dlg:
+                self.dlg.set_state("talking")
+
+    async def send_signaling(self, uid, data):
+        c = self.call
+        if c and c["uid"] == uid and c["id"] is not None:
+            try:
+                await self.client(functions.phone.SendSignalingDataRequest(
+                    peer=self.peer(c), data=data))
+            except Exception as e:
+                self.win.statusBar().showMessage(f"{tr('error')}: {e}", 8000)
+
+    # --- вспомогательное ---
+
+    @staticmethod
+    def peer(c):
+        return types.InputPhoneCall(id=c["id"], access_hash=c["hash"])
+
+    def match(self, pc):
+        """Состояние текущего звонка, если обновление относится к нему."""
+        c = self.call
+        if not c:
+            return None
+        if c["id"] is None and not c["incoming"] and \
+                getattr(pc, "participant_id", None) == c["uid"]:
+            c["id"], c["hash"] = pc.id, pc.access_hash   # обновление обогнало ответ сервера
+        return c if c["id"] == pc.id else None
+
+    async def name_of(self, uid):
+        if uid in self.win.titles:
+            return self.win.titles[uid]
+        try:
+            return get_display_name(await self.client.get_entity(uid)) or "?"
+        except Exception:
+            return "?"
+
+    def open_dialog(self, uid, name, incoming):
+        if self.dlg is not None:
+            self.dlg.deleteLater()
+        dlg = CallDialog(self.win, uid, name, incoming)
+        dlg.on_accept = lambda: self.win.spawn(self.accept())
+        dlg.on_hangup = lambda: self.win.spawn(self.hangup())
+        dlg.on_mute = self.set_mute
+        self.dlg = dlg
+        dlg.show()
+        dlg.raise_()
+        dlg.activateWindow()
+        QApplication.alert(dlg, 0)   # мигнуть в панели задач, если окно не в фокусе
+
+    def set_mute(self, muted):
+        c = self.call
+        if c and self.ntg is not None:
+            self.win.spawn(_run(self.ntg.mute if muted else self.ntg.unmute, c["uid"]))
+
+    # --- исходящий звонок ---
+
+    async def start_call(self, uid):
+        if self.call:
+            self.win.statusBar().showMessage(tr("call_busy"), 5000)
+            return
+        try:
+            self.ensure_ntg()
+        except RuntimeError as e:
+            self.win.notify(str(e))
+            return
+        self.loop = asyncio.get_running_loop()
+        self.call = c = dict(uid=uid, incoming=False, id=None, hash=None)
+        self.open_dialog(uid, await self.name_of(uid), incoming=False)
+        try:
+            user = await self.client.get_input_entity(uid)
+            dh = await self.dh_config()
+            await _run(self.ntg.create_p2p_call, uid)
+            await _run(self.ntg.set_stream_sources, uid, ntgcalls.StreamMode.CAPTURE,
+                      await self.media())
+            g_a_hash = await _run(self.ntg.init_exchange, uid, dh, None)
+            res = await self.client(functions.phone.RequestCallRequest(
+                user_id=user, random_id=random.randint(0, 2 ** 31 - 1),
+                g_a_hash=bytes(g_a_hash), protocol=self.protocol(), video=False))
+            if self.call is c and c["id"] is None:
+                c["id"], c["hash"] = res.phone_call.id, res.phone_call.access_hash
+        except Exception as e:
+            await self.fail(c, e)
+
+    # --- входящий звонок: принять ---
+
+    async def accept(self):
+        c = self.call
+        if not c or not c["incoming"] or c.get("accepted"):
+            return
+        c["accepted"] = True
+        self.dlg.set_state("connecting")
+        try:
+            self.ensure_ntg()
+            dh = await self.dh_config()
+            await _run(self.ntg.create_p2p_call, c["uid"])
+            await _run(self.ntg.set_stream_sources, c["uid"], ntgcalls.StreamMode.CAPTURE,
+                       await self.media())
+            g_b = await _run(self.ntg.init_exchange, c["uid"], dh, c["g_a_hash"])
+            await self.client(functions.phone.AcceptCallRequest(
+                peer=self.peer(c), g_b=bytes(g_b), protocol=self.protocol()))
+        except Exception as e:
+            await self.fail(c, e)
+
+    # --- обновления от Telegram ---
+
+    async def on_update(self, upd):
+        if isinstance(upd, types.UpdatePhoneCallSignalingData):
+            c = self.call
+            if c and c["id"] == upd.phone_call_id and self.ntg is not None:
+                data = bytes(upd.data)
+                if c.get("connected"):
+                    try:
+                        await _run(self.ntg.send_signaling_data, c["uid"], data)
+                    except Exception:
+                        pass
+                else:   # сигнализация может прийти раньше connect_p2p — держим очередь
+                    c.setdefault("sig_in", []).append(data)
+            return
+        pc = upd.phone_call
+        try:
+            if isinstance(pc, types.PhoneCallRequested):
+                await self.on_requested(pc)
+            elif isinstance(pc, types.PhoneCallWaiting):
+                self.match(pc)
+            elif isinstance(pc, types.PhoneCallAccepted):
+                await self.on_accepted(pc)
+            elif isinstance(pc, types.PhoneCall):
+                await self.on_ready(pc)
+            elif isinstance(pc, types.PhoneCallDiscarded):
+                await self.on_discarded(pc)
+        except Exception as e:
+            if self.call:
+                await self.fail(self.call, e)
+            else:
+                self.win.statusBar().showMessage(f"{tr('error')}: {e}", 8000)
+
+    async def on_requested(self, pc):
+        """Нам звонят."""
+        if time.time() - pc.date.timestamp() > CALL_STALE:
+            return   # старое обновление из очереди — звонок давно закончился
+        if self.call:
+            await self.client(functions.phone.DiscardCallRequest(
+                peer=types.InputPhoneCall(id=pc.id, access_hash=pc.access_hash),
+                duration=0, reason=types.PhoneCallDiscardReasonBusy(), connection_id=0))
+            return
+        uid = pc.admin_id
+        self.loop = asyncio.get_running_loop()
+        self.call = dict(uid=uid, incoming=True, id=pc.id, hash=pc.access_hash,
+                         g_a_hash=bytes(pc.g_a_hash))
+        try:   # сообщаем звонящему, что у нас звонит
+            await self.client(functions.phone.ReceivedCallRequest(peer=self.peer(self.call)))
+        except Exception:
+            pass
+        self.open_dialog(uid, await self.name_of(uid), incoming=True)
+
+    async def on_accepted(self, pc):
+        """Собеседник принял наш звонок: достраиваем ключ и подтверждаем."""
+        c = self.match(pc)
+        if not c or c["incoming"] or c.get("confirmed"):
+            return
+        c["confirmed"] = True
+        auth = await _run(self.ntg.exchange_keys, c["uid"], bytes(pc.g_b), 0)
+        res = await self.client(functions.phone.ConfirmCallRequest(
+            peer=self.peer(c), g_a=bytes(auth.g_a_or_b),
+            key_fingerprint=auth.key_fingerprint, protocol=self.protocol()))
+        await self.connect(c, res.phone_call)
+
+    async def on_ready(self, pc):
+        """Пришёл итоговый PhoneCall со списком серверов — можно соединяться."""
+        c = self.match(pc)
+        if not c:
+            return
+        if c["incoming"] and not c.get("keys"):
+            if not c.get("accepted"):
+                return
+            # g_a должен совпасть с хешем, который звонящий прислал в самом начале
+            if hashlib.sha256(bytes(pc.g_a_or_b)).digest() != c["g_a_hash"]:
+                raise RuntimeError("g_a_hash mismatch")
+            c["keys"] = True
+            await _run(self.ntg.exchange_keys, c["uid"], bytes(pc.g_a_or_b),
+                       pc.key_fingerprint)
+        elif not c["incoming"] and not c.get("confirmed"):
+            return
+        await self.connect(c, pc)
+
+    async def connect(self, c, pc):
+        if c.get("connecting") or self.call is not c:
+            return
+        c["connecting"] = True
+        self.dlg.set_state("connecting")
+        await _run(self.ntg.connect_p2p, c["uid"], [self.server(x) for x in pc.connections],
+                   list(pc.protocol.library_versions), bool(pc.p2p_allowed), None)
+        # приём звука: отдельный источник PLAYBACK (входящий звук идёт в слот microphone)
+        await _run(self.ntg.set_stream_sources, c["uid"], ntgcalls.StreamMode.PLAYBACK,
+                   await self.playback_media())
+        c["connected"] = True
+        for data in c.pop("sig_in", []):   # сигнализация, пришедшая раньше соединения
+            try:
+                await _run(self.ntg.send_signaling_data, c["uid"], data)
+            except Exception:
+                pass
+        if not hasattr(self.ntg, "on_connection_change"):   # некому сообщить «соединились»
+            self.set_talking(c)
+
+    async def on_discarded(self, pc):
+        c = self.match(pc)
+        if not c:
+            return
+        r = pc.reason
+        if isinstance(r, types.PhoneCallDiscardReasonMissed):
+            text = tr("call_missed")
+        elif isinstance(r, types.PhoneCallDiscardReasonBusy):
+            text = tr("call_peer_busy")
+        elif isinstance(r, types.PhoneCallDiscardReasonDisconnect):
+            text = tr("call_failed")
+        else:
+            text = tr("call_ended")
+        await self.hangup(None, text, notify_server=False)
+
+    # --- завершение ---
+
+    def default_reason(self, c):
+        if c["incoming"]:
+            return (types.PhoneCallDiscardReasonHangup() if c.get("accepted")
+                    else types.PhoneCallDiscardReasonBusy())
+        return (types.PhoneCallDiscardReasonHangup() if c.get("confirmed")
+                else types.PhoneCallDiscardReasonMissed())
+
+    async def hangup(self, reason=None, text=None, notify_server=True):
+        """Кладём трубку (или обрабатываем отбой с той стороны) и закрываем окно."""
+        c, self.call = self.call, None
+        if not c:
+            return
+        dlg, self.dlg = self.dlg, None
+        if notify_server and c["id"] is not None:
+            dur = int(time.monotonic() - c["started"]) if c.get("started") else 0
+            try:
+                await self.client(functions.phone.DiscardCallRequest(
+                    peer=self.peer(c), duration=dur,
+                    reason=reason or self.default_reason(c), connection_id=0))
+            except Exception:
+                pass
+        if self.ntg is not None:
+            try:
+                await _run(self.ntg.stop, c["uid"])
+            except Exception:
+                pass   # create_p2p_call мог ещё не вызываться
+        if dlg is not None:
+            dlg.finish(text or tr("call_ended"))
+
+    async def fail(self, c, err):
+        if self.call is not c:
+            return
+        msg = f"{tr('error')}: {err}"
+        self.win.statusBar().showMessage(msg.split("\n")[0], 8000)   # одна строка для бара
+        await self.hangup(types.PhoneCallDiscardReasonDisconnect(), msg)
 
 
 class CatGram(QMainWindow):
@@ -689,6 +2025,8 @@ class CatGram(QMainWindow):
         self.older_busy = None   # «поколение», для которого сейчас идёт подгрузка вверх
         self.epoch = 0           # номер «поколения» окна: ответы для прошлого чата отбрасываются
         self._tasks = set()
+        self.sticker_panel = None   # панель стикеров (создаётся лениво, переживает закрытия)
+        self.calls = Calls(self)    # голосовые звонки
 
         self.setWindowIcon(QIcon(cat_pixmap("catgram", 128)))
         self.resize(1000, 650)
@@ -718,6 +2056,17 @@ class CatGram(QMainWindow):
         self.header.setIconSize(QSize(32, 32))
         self.header.clicked.connect(self.open_info)
         self.header.hide()
+        self.call_btn = QPushButton("📞")    # звонок в Telegram (через ntgcalls)
+        self.call_btn.clicked.connect(self.on_call)
+        self.call_btn.hide()
+        self.tel_btn = QPushButton("📱")     # звонок на номер через системное приложение
+        self.tel_btn.clicked.connect(self.on_call_tel)
+        self.tel_btn.hide()
+        head_row = QHBoxLayout()
+        head_row.setSpacing(6)
+        head_row.addWidget(self.header, 1)
+        head_row.addWidget(self.call_btn)
+        head_row.addWidget(self.tel_btn)
 
         self.view = ChatView(self.photo_cache)
         self.view.verticalScrollBar().valueChanged.connect(self.on_scroll)
@@ -742,15 +2091,21 @@ class CatGram(QMainWindow):
         self.input.returnPressed.connect(self.on_send)
         self.attach = QPushButton("📎")
         self.attach.clicked.connect(self.on_attach)
+        self.emoji_btn = QPushButton("😺")   # панель смайликов
+        self.emoji_btn.clicked.connect(self.open_emoji)
+        self.sticker_btn = QPushButton("🐾")   # панель стикеров
+        self.sticker_btn.clicked.connect(self.open_stickers)
         send_row = QHBoxLayout()
         send_row.setSpacing(6)
         send_row.addWidget(self.attach)
+        send_row.addWidget(self.emoji_btn)
+        send_row.addWidget(self.sticker_btn)
         send_row.addWidget(self.input, 1)
 
         right = QWidget()
         rl = QVBoxLayout(right)
         rl.setContentsMargins(0, 6, 6, 8)
-        rl.addWidget(self.header)
+        rl.addLayout(head_row)
         rl.addWidget(self.msg_search)
         rl.addWidget(self.stack, 1)
         rl.addLayout(send_row)
@@ -772,16 +2127,27 @@ class CatGram(QMainWindow):
         self.act_info = QAction(self)
         self.act_info.setShortcut(QKeySequence("Ctrl+I"))
         self.act_info.triggered.connect(self.open_info)
+        self.act_call = QAction(self)
+        self.act_call.setShortcut(QKeySequence("Ctrl+L"))
+        self.act_call.triggered.connect(self.on_call)
+        self.act_call_tel = QAction(self)
+        self.act_call_tel.triggered.connect(self.on_call_tel)
         self.act_updates = QAction(self)
         self.act_updates.triggered.connect(lambda *_: self.spawn(self.check_updates(True)))
+        self.act_games = QAction(self)          # мини-игры: скоротать ожидание ответа
+        self.act_games.setShortcut(QKeySequence("Ctrl+G"))
+        self.act_games.triggered.connect(self.open_games)
         self.act_quit = QAction(self)
         self.act_quit.setShortcut(QKeySequence("Ctrl+Q"))
         self.act_quit.triggered.connect(lambda *_: self.close())
-        for act in (self.act_info, self.act_search, self.act_settings, self.act_updates):
+        for act in (self.act_info, self.act_search, self.act_call, self.act_call_tel,
+                    self.act_settings, self.act_updates, self.act_games):
             self.menu.addAction(act)
         self.menu.addSeparator()
         self.menu.addAction(self.act_quit)
         QShortcut(QKeySequence("Escape"), self, activated=self.close_search)
+        QShortcut(QKeySequence("Ctrl+E"), self, activated=self.open_emoji)
+        QShortcut(QKeySequence("Ctrl+T"), self, activated=self.open_stickers)
 
         self.retranslate()
 
@@ -798,12 +2164,19 @@ class CatGram(QMainWindow):
         self.act_settings.setText(tr("settings"))
         self.act_search.setText(tr("search"))
         self.act_info.setText(tr("info"))
+        self.act_call.setText(tr("call"))
+        self.act_call_tel.setText(tr("call_tel"))
         self.act_updates.setText(tr("updates"))
+        self.act_games.setText(tr("games"))
         self.act_quit.setText(tr("quit"))
         self.chat_filter.setPlaceholderText(tr("find_chats"))
         self.msg_search.setPlaceholderText(tr("find_msgs"))
         self.input.setPlaceholderText(tr("write"))
         self.attach.setToolTip(tr("attach_video"))
+        self.emoji_btn.setToolTip(tr("emoji"))
+        self.sticker_btn.setToolTip(tr("stickers"))
+        if self.sticker_panel is not None:
+            self.sticker_panel.setWindowTitle(tr("stickers"))
         self.empty_text.setText(tr("pick_chat"))
 
     def closeEvent(self, event):
@@ -835,6 +2208,7 @@ class CatGram(QMainWindow):
     async def start(self):
         self.client.add_event_handler(self.on_new_message, events.NewMessage())
         self.client.add_event_handler(self.on_user_update, events.UserUpdate())
+        self.calls.attach()
         async for d in self.client.iter_dialogs(limit=100):
             self.entities[d.id] = d.entity
             self.titles[d.id] = d.name or "?"
@@ -908,10 +2282,44 @@ class CatGram(QMainWindow):
         if uid == self.current:
             self.update_header()
 
+    def can_call(self, did):
+        """Звонить можно обычным людям — не ботам, не группам, не самому себе."""
+        ent = self.entities.get(did)
+        return isinstance(ent, types.User) and not (ent.bot or ent.is_self or ent.deleted)
+
+    def phone_of(self, did):
+        """Только цифры номера, если Telegram его показывает (настройки приватности)."""
+        return re.sub(r"\D", "", getattr(self.entities.get(did), "phone", None) or "")
+
+    def on_call(self, *_):
+        if self.current is None:
+            return
+        if self.can_call(self.current):
+            self.spawn(self.calls.start_call(self.current))
+        else:
+            self.statusBar().showMessage(tr("call_people_only"), 5000)
+
+    def on_call_tel(self, *_):
+        phone = self.phone_of(self.current) if self.current is not None else ""
+        if not phone:
+            self.statusBar().showMessage(tr("call_no_phone"), 6000)
+        elif not QDesktopServices.openUrl(QUrl(f"tel:+{phone}")):
+            self.notify(tr("call_tel_fail"))
+
     def update_header(self):
         if self.current is None:
             self.header.hide()
+            self.call_btn.hide()
+            self.tel_btn.hide()
             return
+        ok = self.can_call(self.current)
+        has_phone = ok and bool(self.phone_of(self.current))
+        self.call_btn.setEnabled(ok)
+        self.call_btn.setToolTip(tr("call" if ok else "call_people_only"))
+        self.tel_btn.setEnabled(has_phone)
+        self.tel_btn.setToolTip(tr("call_tel" if has_phone else "call_no_phone"))
+        self.call_btn.show()
+        self.tel_btn.show()
         title = self.titles.get(self.current, "?")
         status = self.status_text(self.current)
         if status:
@@ -987,7 +2395,7 @@ class CatGram(QMainWindow):
             size = pick_size(m.photo)
             if size is not None:
                 return size, 360, (size.w, size.h)
-        elif m.sticker and webp_ok():
+        elif m.sticker and webp_help():   # webp умеет Qt или подхватится конвертер
             if m.sticker.mime_type == "image/webp":          # статичный стикер — качаем целиком
                 f = m.file
                 return None, STICKER_PX, (f.width or 512, f.height or 512)
@@ -1010,7 +2418,7 @@ class CatGram(QMainWindow):
                 if did != self.current:   # чат уже закрыли — не качаем зря
                     return
                 data = await m.download_media(file=bytes, thumb=thumb)
-            img = QImage.fromData(data) if data else QImage()
+            img = decode_image(data)
             if img.isNull():
                 return
             if img.width() > maxw:
@@ -1240,6 +2648,70 @@ class CatGram(QMainWindow):
                     os.remove(thumb)
                 except OSError:
                     pass
+
+    # --- игры и смайлики ---
+
+    def open_games(self, *_):
+        """Мини-игры, пока собеседник молчит и печатает ответ."""
+        dlg = QDialog(self)
+        dlg.setWindowTitle(tr("games"))
+        dlg.setModal(False)
+        dlg.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+        tabs = QTabWidget()
+        tabs.addTab(SnakeGame(), tr("snake"))
+        tabs.addTab(Game2048(), tr("g2048"))
+        hint = QLabel(tr("wait_hint"))
+        hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        lay = QVBoxLayout(dlg)
+        lay.addWidget(tabs)
+        lay.addWidget(hint)
+        dlg.show()
+
+    def open_emoji(self, *_):
+        """Панель смайликов: клик вставляет эмодзи в поле ввода, окно остаётся открытым."""
+        dlg = QDialog(self)
+        dlg.setWindowTitle(tr("emoji"))
+        dlg.setModal(False)
+        dlg.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+        grid = QGridLayout()
+        grid.setSpacing(2)
+        for i, ch in enumerate(EMOJIS):
+            b = QPushButton(ch)
+            b.setFixedSize(38, 34)
+            f = b.font()
+            f.setPointSize(13)
+            b.setFont(f)
+            b.clicked.connect(lambda *_, ch=ch: self.insert_emoji(ch))
+            grid.addWidget(b, i // 8, i % 8)
+        inner = QWidget()
+        inner.setLayout(grid)
+        scroll = QScrollArea()
+        scroll.setWidget(inner)
+        scroll.setWidgetResizable(True)
+        scroll.setFixedHeight(420)
+        lay = QVBoxLayout(dlg)
+        lay.addWidget(scroll)
+        dlg.show()
+
+    def insert_emoji(self, ch):
+        self.input.insert(ch)   # вставляется там, где курсор в поле ввода
+
+    def open_stickers(self, *_):
+        """Панель стикеров: клик по стикеру отправляет его в открытый чат."""
+        if self.current is None:
+            return
+        if self.sticker_panel is None:
+            self.sticker_panel = StickerPanel(self)
+        self.sticker_panel.show()
+        self.sticker_panel.raise_()
+        self.sticker_panel.activateWindow()
+
+    async def send_sticker(self, did, doc):
+        if did is None:
+            return
+        m = await self.client.send_file(did, doc)
+        if did == self.current:
+            await self.show_message(m)
 
     async def on_new_message(self, event):
         did = event.chat_id
@@ -1483,6 +2955,10 @@ async def amain(closing):
         if S["check_updates"]:
             win.spawn(win.check_updates())
         await closing.wait()
+        try:   # не оставляем звонок висеть, если окно закрыли посреди разговора
+            await asyncio.wait_for(win.calls.hangup(), 3)
+        except Exception:
+            pass
     finally:
         await client.disconnect()
 
