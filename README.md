@@ -1,3 +1,4 @@
+# кто хочет пусть предлогает идеи писать мне на @kotikst:matrix.org
 # ничего комерческого,чисто хобби
 <img width="1346" height="920" alt="Снимок экрана от 2026-11-03 15-28-00" src="https://github.com/user-attachments/assets/80135e2f-acff-4fd2-88e9-7a0540745289" />
 
