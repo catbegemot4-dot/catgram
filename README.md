@@ -1,3 +1,54 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   version="1.1"
+   id="svg1"
+   width="554"
+   height="554"
+   viewBox="0 0 554 554"
+   sodipodi:docname="images.png"
+   inkscape:version="1.4.4 (dcaf3e7d9e, 2026-05-05)"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <defs
+     id="defs1" />
+  <sodipodi:namedview
+     id="namedview1"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     showgrid="false"
+     inkscape:zoom="0.933213"
+     inkscape:cx="277"
+     inkscape:cy="282.35783"
+     inkscape:window-width="1440"
+     inkscape:window-height="744"
+     inkscape:window-x="0"
+     inkscape:window-y="0"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="g1" />
+  <g
+     inkscape:groupmode="layer"
+     inkscape:label="Image"
+     id="g1">
+    <path
+       style="fill:#000000"
+       d="M 115.72921,100.72727 C 296.82398,324.68472 79.295938,280.75048 79.295938,280.75048 l 218.599612,45.00581 v 0"
+       id="path1" />
+    <path
+       style="fill:#000000"
+       d="m 230.38685,246.46035 c 99.6557,-109.29981 136.08897,-297.895553 99.6557,-109.29981 -36.43327,188.59575 -36.43327,188.59575 -36.43327,188.59575 l 10.71567,-87.86848 106.08511,291.46616 z"
+       id="path2" />
+  </g>
+</svg>
+![images](https://github.com/user-attachments/assets/3d2f933b-057a-4230-81fc-9518f0c0981a)
 # кто хочет пусть предлогает идеи писать мне на @kotikst:matrix.org или на catbegemot4@gmail.com
 # ничего комерческого,чисто хобби
 <img width="1346" height="920" alt="Снимок экрана от 2026-11-03 15-28-00" src="https://github.com/user-attachments/assets/80135e2f-acff-4fd2-88e9-7a0540745289" />
