@@ -2,7 +2,11 @@
 <img width="512" height="512" alt="free-icon-release-15238156" src="https://github.com/user-attachments/assets/08c363ad-9c15-4b93-bb93-8b1391cb6246" />
 
 # кто хочет пусть предлогает идеи, писать мне на @kotikst:matrix.org
-<img width="1346" height="920" alt="Снимок экрана от 2026-11-03 15-28-00" src="https://github.com/user-attachments/assets/80135e2f-acff-4fd2-88e9-7a0540745289" />
+<img width="1280" height="693" alt="photo_2026-11-08_03-41-02" src="https://github.com/user-attachments/assets/dd30193d-8eba-4a43-b86b-c6196a06bf48" />
+<img width="1280" height="694" alt="photo_2026-11-08_03-41-08" src="https://github.com/user-attachments/assets/58609df0-35fc-4a03-8cdf-d05bb05c64a8" />
+<img width="1280" height="693" alt="photo_2026-11-08_03-41-02" src="https://github.com/user-attachments/assets/e1e497f4-a940-48ec-b545-f3de42645ace" />
+<img width="1280" height="693" alt="photo_2026-11-08_03-41-05" src="https://github.com/user-attachments/assets/27dc7b5e-068c-4a08-8824-504b526e1ff1" />
+
 
 # 🐱 catgram
 
