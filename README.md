@@ -1,4 +1,5 @@
 ## есть баги
+vibecoded with mistral ai
 <img width="512" height="512" alt="free-icon-release-15238156" src="https://github.com/user-attachments/assets/08c363ad-9c15-4b93-bb93-8b1391cb6246" />
 
 # кто хочет пусть предлагает идеи, писать мне на @kotikst:matrix.org
